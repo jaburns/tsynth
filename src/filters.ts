@@ -1,4 +1,4 @@
-type Knob = {
+export type Knob = {
     readonly lower: number,
     readonly upper: number,
     readonly logarithmic: boolean,
@@ -6,7 +6,7 @@ type Knob = {
     value: number,
 };
 
-abstract class BaseNode<K extends {[name: string]: Knob}> {
+export abstract class BaseNode<K extends {[name: string]: Knob}> {
     readonly sampleRate: number;
     readonly knobs: K; 
 
@@ -42,7 +42,7 @@ export class SineNode extends BaseNode<SineKnobs> {
 
     constructor(sampleRate: number) {
         super(sampleRate, {
-            frequency: {lower: 0, upper: 20000, logarithmic: true, value: 440},
+            frequency: {lower: 1, upper: 20000, logarithmic: true, value: 440},
         });
     }
 
@@ -96,7 +96,7 @@ export class LowPassFilterNode extends BaseNode<LowPassFilterKnobs> {
 
     constructor(sampleRate: number) {
         super(sampleRate, {
-            frequency: {lower: 0, upper: 20000, logarithmic: true,  value: 200},
+            frequency: {lower: 1, upper: 20000, logarithmic: true,  value: 200},
             bandwidth: {lower: 0, upper: 10,    logarithmic: false, value: 1},
         });
     }

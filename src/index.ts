@@ -1,4 +1,4 @@
-import { NoiseNode, LowPassFilterNode, copyBuffer } from "filters";
+import { NoiseNode, LowPassFilterNode, copyBuffer, Knob, BaseNode } from "filters";
 import { Simple1DNoise } from "noise1";
 import { startAudio } from "systemapi";
 
@@ -7,6 +7,43 @@ document.createElement('input');
 const button = document.querySelector('button') as HTMLButtonElement;
 
 const BUFFER_SIZE = 512;
+
+
+let knobs = document.getElementById('knobs') as HTMLDivElement
+let knobTemplate = document.getElementById('knob-template') as HTMLTemplateElement;
+
+let createKnobSlider = (label: string, knob: Knob, onChange: () => void) => {
+    let newKnob = knobTemplate.content.cloneNode(true) as HTMLElement;
+    let labelElem = newKnob.querySelector('label') as HTMLLabelElement;
+    let inputElem = newKnob.querySelector('input') as HTMLInputElement;
+
+    labelElem.innerText = label;
+
+    if (knob.logarithmic) {
+        inputElem.value =
+            ((Math.log(knob.value) - Math.log(knob.lower)) /
+             (Math.log(knob.upper) - Math.log(knob.lower))).toString();
+    }
+    else {
+        inputElem.value = ((knob.value - knob.lower) / (knob.upper - knob.lower)).toString();
+    }
+
+    inputElem.oninput = inputElem.onchange = e => {
+        let val = parseFloat(inputElem.value);
+
+        if (knob.logarithmic) {
+            knob.value = Math.exp(Math.log(knob.lower) + val * (Math.log(knob.upper) - Math.log(knob.lower)));
+            console.log(knob.lower, knob.upper, knob.value, val);
+        } else {
+            knob.value = knob.lower + val * (knob.upper - knob.lower);
+        }
+
+        onChange();
+    };
+
+    knobs.append(newKnob);
+    knobs.append(document.createElement('br'));
+};
 
 button.onclick = () => {
     let noiseNode: NoiseNode;
@@ -22,6 +59,14 @@ button.onclick = () => {
 
             noiseNode.bindBuffers([], [buf0]);
             filterNode.bindBuffers([buf0], [buf1]);
+
+            for(let k in noiseNode.knobs) {
+                createKnobSlider('noise '+k, (noiseNode.knobs as any)[k], () => noiseNode.update());
+            }
+            
+            for(let k in filterNode.knobs) {
+                createKnobSlider('filter '+k, (filterNode.knobs as any)[k], () => filterNode.update());
+            }
         },
         output => {
             noiseNode.tick();
@@ -30,11 +75,6 @@ button.onclick = () => {
         }
     );
 
-    let elem = document.getElementById('cutoff') as HTMLInputElement;
-    elem.oninput = elem.onchange = e => {
-        filterNode.knobs.frequency.value = Math.exp(parseFloat(elem.value));
-        filterNode.update();
-    };
 
 //  let noise = Simple1DNoise();
 //  let noiseT = 0;
