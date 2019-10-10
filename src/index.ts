@@ -1,4 +1,4 @@
-import { NoiseNode, LowPassFilterNode, copyBuffer, Knob, BaseNode } from "filters";
+import { NoiseNode, LowPassFilterNode, copyBuffer, Knob, BaseNode, KnobSet, SineNode } from "filters";
 import { Simple1DNoise } from "noise1";
 import { startAudio } from "systemapi";
 
@@ -45,6 +45,12 @@ let createKnobSlider = (label: string, knob: Knob, onChange: () => void) => {
     knobs.append(document.createElement('br'));
 };
 
+const createSlidersForNode = <T extends KnobSet>(name: string, node: BaseNode<T>) => {
+    for(let k in node.knobs) {
+        createKnobSlider(name+' '+k, (node.knobs as any)[k], () => node.update());
+    }
+}
+
 button.onclick = () => {
     let noiseNode: NoiseNode;
     let filterNode: LowPassFilterNode;
@@ -54,19 +60,14 @@ button.onclick = () => {
 
     startAudio(BUFFER_SIZE, 1, 
         sampleRate => {
-            noiseNode = new NoiseNode;
+            noiseNode = new SineNode(sampleRate);
             filterNode = new LowPassFilterNode(sampleRate);
 
             noiseNode.bindBuffers([], [buf0]);
             filterNode.bindBuffers([buf0], [buf1]);
 
-            for(let k in noiseNode.knobs) {
-                createKnobSlider('noise '+k, (noiseNode.knobs as any)[k], () => noiseNode.update());
-            }
-            
-            for(let k in filterNode.knobs) {
-                createKnobSlider('filter '+k, (filterNode.knobs as any)[k], () => filterNode.update());
-            }
+            createSlidersForNode('sine', noiseNode);
+            createSlidersForNode('filter', filterNode);
         },
         output => {
             noiseNode.tick();

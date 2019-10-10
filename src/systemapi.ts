@@ -7,13 +7,13 @@ type AudioCallback = (buffer: Float32Array) => void;
 // };
 
 export const startAudio = (bufferSize: number, channels: number, init: InitCallback, tick: AudioCallback): void => {
-    const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+    const AudioContext = (window as any).AudioContext || (window as any).webkitAudioContext;
     const ctx = new AudioContext;
     const scriptNode = ctx.createScriptProcessor(bufferSize, 0, channels);
 
     init(ctx.sampleRate);
 
-    scriptNode.onaudioprocess = e => {
+    scriptNode.onaudioprocess = (e: any) => {
         const outputBuffer = e.outputBuffer;
         const outputData = outputBuffer.getChannelData(0);
 

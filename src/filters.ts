@@ -6,7 +6,9 @@ export type Knob = {
     value: number,
 };
 
-export abstract class BaseNode<K extends {[name: string]: Knob}> {
+export type KnobSet = {[name: string]: Knob};
+
+export abstract class BaseNode<K extends KnobSet> {
     readonly sampleRate: number;
     readonly knobs: K; 
 
