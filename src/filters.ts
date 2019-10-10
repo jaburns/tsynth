@@ -39,8 +39,8 @@ type SineKnobs = {
 };
 
 export class SineNode extends BaseNode<SineKnobs> {
-    private t: number;
-    private omega: number;
+    private t: number = 0;
+    private omega: number = 1;
 
     constructor(sampleRate: number) {
         super(sampleRate, {
@@ -49,8 +49,9 @@ export class SineNode extends BaseNode<SineKnobs> {
     }
 
     update() {
-        this.t = 0;
-        this.omega = 2 * Math.PI * this.knobs.frequency.value / this.sampleRate;
+        const newOmega = 2 * Math.PI * this.knobs.frequency.value / this.sampleRate;
+        this.t *= this.omega / newOmega;
+        this.omega = newOmega;
     }
 
     tick() {
