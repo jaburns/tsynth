@@ -1,80 +1,82 @@
-import { NoiseNode, LowPassFilterNode, copyBuffer, Knob, BaseNode, KnobSet, SineNode } from "filters";
-import { Simple1DNoise } from "noise1";
-import { startAudio } from "systemapi";
-
-document.createElement('input');
-
-const button = document.querySelector('button') as HTMLButtonElement;
+import { AudioSystem } from "audioSystem";
+import { SineSource } from "nodes/sineSource";
+import { LowPassFilter } from "nodes/biquadFilter";
+import { createSlidersForNode } from "ui";
+import { copyBuffer } from "utils";
+import { SquareSource } from "nodes/squareSource";
+import { GainFilter } from "nodes/gainFilter";
+import { SawSource } from "nodes/sawSource";
+import { AddFilter } from "nodes/addFilter";
+import { KnobSet, patchNodes } from "nodes/baseNode";
+import { ADSRFilter } from "nodes/adsrFilter";
 
 const BUFFER_SIZE = 512;
 
+const goButton = document.querySelector('#go-button') as HTMLButtonElement;
+const dingButton = document.querySelector('#ding-button') as HTMLButtonElement;
 
-let knobs = document.getElementById('knobs') as HTMLDivElement
-let knobTemplate = document.getElementById('knob-template') as HTMLTemplateElement;
+const dingBuffer = new Float32Array(BUFFER_SIZE);
 
-let createKnobSlider = (label: string, knob: Knob, onChange: () => void) => {
-    let newKnob = knobTemplate.content.cloneNode(true) as HTMLElement;
-    let labelElem = newKnob.querySelector('label') as HTMLLabelElement;
-    let inputElem = newKnob.querySelector('input') as HTMLInputElement;
+dingButton.onmousedown = () => { dingBuffer[0] = 1; };
+dingButton.onmouseup = () => { dingBuffer[0] = 0; };
 
-    labelElem.innerText = label;
+goButton.onclick = () => {
+    const audio = new AudioSystem(BUFFER_SIZE, 1);
 
-    if (knob.logarithmic) {
-        inputElem.value =
-            ((Math.log(knob.value) - Math.log(knob.lower)) /
-             (Math.log(knob.upper) - Math.log(knob.lower))).toString();
-    }
-    else {
-        inputElem.value = ((knob.value - knob.lower) / (knob.upper - knob.lower)).toString();
-    }
+    const squareSource = new SquareSource(audio.sampleRate);
+    const sineSource = new SineSource(audio.sampleRate);
+    const squareLPF = new LowPassFilter(audio.sampleRate);
+    const sineLPF = new LowPassFilter(audio.sampleRate);
+    const squareGain = new GainFilter();
+    const sineGain = new GainFilter();
+    const adder = new AddFilter();
+    const adsr = new ADSRFilter(audio.sampleRate);
 
-    inputElem.oninput = inputElem.onchange = e => {
-        let val = parseFloat(inputElem.value);
+    patchNodes(BUFFER_SIZE, squareSource, squareLPF);
+    patchNodes(BUFFER_SIZE, squareLPF, squareGain);
+    patchNodes(BUFFER_SIZE, squareGain, adder);
 
-        if (knob.logarithmic) {
-            knob.value = Math.exp(Math.log(knob.lower) + val * (Math.log(knob.upper) - Math.log(knob.lower)));
-            console.log(knob.lower, knob.upper, knob.value, val);
-        } else {
-            knob.value = knob.lower + val * (knob.upper - knob.lower);
-        }
+    patchNodes(BUFFER_SIZE, sineSource, sineLPF);
+    patchNodes(BUFFER_SIZE, sineLPF, sineGain);
+    patchNodes(BUFFER_SIZE, sineGain, adder);
 
-        onChange();
-    };
+    adsr.connectInputBuffer(dingBuffer);
+    patchNodes(BUFFER_SIZE, adder, adsr);
 
-    knobs.append(newKnob);
-    knobs.append(document.createElement('br'));
+    const out = new Float32Array(BUFFER_SIZE);
+    adsr.connectOutputBuffer(out);
+
+    createSlidersForNode('squareSource', squareSource);
+    createSlidersForNode('sineSource', sineSource);
+    createSlidersForNode('squareLPF', squareLPF);
+    createSlidersForNode('sineLPF', sineLPF);
+    createSlidersForNode('squareGain', squareGain);
+    createSlidersForNode('sineGain', sineGain);
+    createSlidersForNode('adder', adder);
+    createSlidersForNode('adsr', adsr);
+
+    squareSource.update();
+    sineSource.update();
+    squareLPF.update();
+    sineLPF.update();
+    squareGain.update();
+    sineGain.update();
+    adder.update();
+    adsr.update();
+
+    audio.start(outBuffer => {
+        squareSource.tick();
+        sineSource.tick();
+        squareLPF.tick();
+        sineLPF.tick();
+        squareGain.tick();
+        sineGain.tick();
+        adder.tick();
+        adsr.tick();
+
+        copyBuffer(out, outBuffer);
+    });
 };
-
-const createSlidersForNode = <T extends KnobSet>(name: string, node: BaseNode<T>) => {
-    for(let k in node.knobs) {
-        createKnobSlider(name+' '+k, (node.knobs as any)[k], () => node.update());
-    }
-}
-
-button.onclick = () => {
-    let noiseNode: NoiseNode;
-    let filterNode: LowPassFilterNode;
-
-    const buf0 = new Float32Array(BUFFER_SIZE);
-    const buf1 = new Float32Array(BUFFER_SIZE);
-
-    startAudio(BUFFER_SIZE, 1, 
-        sampleRate => {
-            noiseNode = new SineNode(sampleRate);
-            filterNode = new LowPassFilterNode(sampleRate);
-
-            noiseNode.bindBuffers([], [buf0]);
-            filterNode.bindBuffers([buf0], [buf1]);
-
-            createSlidersForNode('sine', noiseNode);
-            createSlidersForNode('filter', filterNode);
-        },
-        output => {
-            noiseNode.tick();
-            filterNode.tick();
-            copyBuffer(buf1, output);
-        }
-    );
 
 
 //  let noise = Simple1DNoise();
@@ -86,4 +88,3 @@ button.onclick = () => {
 //      filterNode.knobs.frequency.value = 175 + (400 - 175) * rand;
 //      filterNode.update();
 //  }, 10);
-};
