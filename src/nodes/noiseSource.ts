@@ -10,7 +10,8 @@ export class NoiseSource extends BaseNode<{}> {
     tick() {
         const y = this.outputBuffers[0];
 
-        for (let i = 0; i < y.length; ++i) 
+        for (let i = 0; i < y.length; ++i) {
             y[i] = Math.random() * 2 - 1;
+        }
     }
 }
