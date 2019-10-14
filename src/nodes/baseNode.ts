@@ -14,6 +14,7 @@ export const patchNodes = <T extends KnobSet, U extends KnobSet>(bufferSize: num
     nodeB.connectInputBuffer(buffer);
 };
 
+
 export abstract class BaseNode<K extends KnobSet> {
     readonly sampleRate: number;
     readonly knobs: K; 

@@ -1,6 +1,7 @@
 export const copyBuffer = (from: Float32Array, to: Float32Array): void => {
-    for (let i = 0; i < from.length && i < to.length; ++i)
+    for (let i = 0; i < from.length && i < to.length; ++i) {
         to[i] = from[i];
+    }
 };
 
 export type SmoothNoiseGenerator = () => number;
