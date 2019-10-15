@@ -90,7 +90,7 @@ export const WaveformDef: NodeDef = {
                     t *= omega / newOmega;
                     omega = newOmega;
 
-                    const omegaT = this.omega * this.t++;
+                    const omegaT = omega * t++;
                     const t1 = omegaT - Math.floor(omegaT);
 
                     y[i] = 1 - t1 - t1;

@@ -6,6 +6,8 @@ import { WaveformDef } from "./waveform";
 import { copyBuffer } from "utils";
 
 export type NodeType = 
+    'input' |
+    'output' |
     'adder' |
     'adsr' |
     'lpf' |
@@ -40,6 +42,8 @@ export type NodeDef = {
 export type NodeInstance = {
     readonly type: NodeType,
     readonly knobValues: number[],
+    x: number,
+    y: number,
 };
 
 export type Patch = {
@@ -59,8 +63,30 @@ export const createInstrument = (): Instrument => ({
     patches: [],
 });
 
+export const createNode = (type: NodeType): NodeInstance => ({
+    type,
+    knobValues: getNodeDescriptor(type).knobs.map(x => x.default),
+    x: 10,
+    y: 10,
+});
+
+const inputDescriptor: NodeDescriptor = {
+    inputSignals: [],
+    knobs: [],
+    outputSignals: ['sync', 'frequency'],
+};
+
+const outputDescriptor: NodeDescriptor = {
+    inputSignals: ['output'],
+    knobs: [],
+    outputSignals: [],
+};
+
 export const getNodeDescriptor = (type: NodeType): NodeDescriptor => {
     switch (type) {
+        case 'input':    return inputDescriptor;
+        case 'output':   return outputDescriptor;
+        case 'output':   return AdderDef.descriptor;
         case 'adder':    return AdderDef.descriptor;
         case 'adsr':     return ADSRDef.descriptor;
         case 'lpf':      return LPFDef.descriptor;
@@ -83,27 +109,28 @@ export const constructNode = (sampleRate: number, node: NodeInstance): UpdateFun
 
 export type InstrumentUpdateFunc = (inputSync: Float32Array, inputFreq: Float32Array, outputBuffer: Float32Array) => void;
 
+
 export const constructInstrument = (sampleRate: number, bufferSize: number, instrument: Instrument): InstrumentUpdateFunc => {
     const inpSync = new Float32Array(bufferSize);
     const inpFreq = new Float32Array(bufferSize);
     const out = new Float32Array(bufferSize);
 
     const nodes = instrument.nodes.map(x => ({
+        instance: x,
         inputs: [] as Float32Array[],
         outputs: [] as Float32Array[],
-        update: constructNode(sampleRate, x),
         depth: NaN,
     }));
 
     instrument.patches.forEach(p => {
-        if (p.fromNodeIndex === -2) {
-            nodes[p.toNodeIndex].inputs[p.toSignalIndex] =  inpSync;
+        if (nodes[p.fromNodeIndex].instance.type === "input") {
+            if (p.fromSignalIndex === 0) { //sync
+                nodes[p.toNodeIndex].inputs[p.toSignalIndex] = inpSync;
+            } else { // frequency
+                nodes[p.toNodeIndex].inputs[p.toSignalIndex] = inpFreq;
+            }
         }
-        else if (p.fromNodeIndex === -1) {
-            nodes[p.toNodeIndex].inputs[p.toSignalIndex] =  inpFreq;
-            nodes[p.toNodeIndex].depth = 0;
-        }
-        else if (p.toNodeIndex < 0) {
+        else if (nodes[p.toNodeIndex].instance.type === "output") {
             nodes[p.fromNodeIndex].outputs[p.fromSignalIndex] = out;
         }
         else if (nodes[p.fromNodeIndex].outputs[p.fromSignalIndex]) {
@@ -116,35 +143,41 @@ export const constructInstrument = (sampleRate: number, bufferSize: number, inst
         }
     });
 
-    for (;;) {
-        let depthsAssigned = 0;
+    const getNodeSources = (instrument: Instrument, node: NodeInstance): NodeInstance[] =>
+        instrument.patches
+            .filter(x => x.toNodeIndex === instrument.nodes.indexOf(node))
+            .map(x => instrument.nodes[x.fromNodeIndex]);
 
-        for (let i = 0; i < nodes.length; ++i) {
-            if (!isNaN(nodes[i].depth)) {
-                depthsAssigned++;
-            }
-        }
+    const setNodeDepth = (node: NodeInstance, depth: number) => {
+        nodes.filter(x => x.instance === node)[0].depth = depth;
+    };
 
-        if (depthsAssigned === nodes.length) {
-            break;
-        }
+    let walkingDepth = 0;
+    let walkingNodes = instrument.nodes.filter(x => x.type === 'output');
 
-        for (let i = 0; i < instrument.patches.length; ++i) {
-            if (!isNaN(nodes[instrument.patches[i].fromNodeIndex].depth)) {
-                nodes[instrument.patches[i].toNodeIndex].depth = 
-                    nodes[instrument.patches[i].fromNodeIndex].depth + 1;
-            }
-        }
+    while (walkingNodes.length > 0) {
+        let newWalkingNodes = [] as NodeInstance[];
+
+        walkingNodes.forEach(n => {
+            setNodeDepth(n, walkingDepth)
+            newWalkingNodes = newWalkingNodes.concat(getNodeSources(instrument, n));
+        });
+
+        walkingNodes = newWalkingNodes;
     }
 
-    nodes.sort((a, b) => a.depth - b.depth);
+    nodes.sort((a, b) => b.depth - a.depth);
+
+    const updates = nodes.map(x => x.instance.type === 'input' || x.instance.type === 'output' ? null : constructNode(sampleRate, x.instance));
 
     return (inSync, inFreq, outputBuffer) => {
         copyBuffer(inSync, inpSync);
         copyBuffer(inFreq, inpFreq);
 
         for (let i = 0; i < nodes.length; ++i) {
-            nodes[i].update(nodes[i].inputs, nodes[i].outputs);
+            if (updates[i] !== null) {
+                updates[i]!(nodes[i].inputs, nodes[i].outputs);
+            }
         }
 
         copyBuffer(out, outputBuffer);

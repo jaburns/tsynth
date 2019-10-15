@@ -20,6 +20,8 @@ export class AudioSystem {
             const outputBuffer = e.outputBuffer;
             const outputData = outputBuffer.getChannelData(0);
 
+            // TODO stereo
+
             tick(outputData);
         };
 
